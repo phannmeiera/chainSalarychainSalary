@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { ethers, Signer } from "ethers";
 import {
   EIP712Type,
   FhevmDecryptionSignatureType,
@@ -285,7 +285,7 @@ export class FhevmDecryptionSignature {
     contractAddresses: string[],
     publicKey: string,
     privateKey: string,
-    signer: ethers.Signer
+    signer: Signer
   ): Promise<FhevmDecryptionSignature | null> {
     try {
       const userAddress = (await signer.getAddress()) as `0x${string}`;
@@ -320,7 +320,7 @@ export class FhevmDecryptionSignature {
   static async loadOrSign(
     instance: FhevmInstance,
     contractAddresses: string[],
-    signer: ethers.Signer,
+    signer: Signer,
     storage: GenericStringStorage,
     keyPair?: { publicKey: string; privateKey: string }
   ): Promise<FhevmDecryptionSignature | null> {

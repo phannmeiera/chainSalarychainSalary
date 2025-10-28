@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ethers } from "ethers";
+import { BrowserProvider, Contract, Signer, ethers } from "ethers";
 import { SalaryManagerABI } from "../../abi/SalaryManagerABI";
 import { SalaryManagerAddresses } from "../../abi/SalaryManagerAddresses";
 import { useFhevm } from "../fhevm/useFhevm";
@@ -9,13 +9,13 @@ import { useSalaryManager } from "../hooks/useSalaryManager";
 
 declare global {
   interface Window {
-    ethereum?: ethers.Eip1193Provider;
+    ethereum?: any;
   }
 }
 
 export default function Home() {
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
-  const [signer, setSigner] = useState<ethers.Signer | null>(null);
+  const [provider, setProvider] = useState<BrowserProvider | null>(null);
+  const [signer, setSigner] = useState<Signer | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [daoFunds, setDaoFunds] = useState<string>("0");
@@ -31,7 +31,7 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.ethereum) {
-      const p = new ethers.BrowserProvider(window.ethereum);
+      const p = new BrowserProvider(window.ethereum);
       setProvider(p);
       p.send("eth_chainId", []).then((cid) => setChainId(parseInt(cid, 16)));
     }
@@ -44,21 +44,21 @@ export default function Home() {
     return { address: entry.address as `0x${string}`, chainId: entry.chainId as number };
   }, [chainId]);
 
-  // SSR 安全的 EIP-1193 Provider 解析
+  // SSR safe provider
   const eip1193Provider = typeof globalThis !== "undefined" && (globalThis as any).window && (globalThis as any).window.ethereum
     ? (globalThis as any).window.ethereum
     : undefined;
 
   const { instance: fhevmInstance, status: fhevmStatus } = useFhevm({
     provider: provider ? eip1193Provider : undefined,
-    chainId,
+    chainId: chainId ?? undefined,
     initialMockChains: { 31337: "http://127.0.0.1:8545" },
     enabled: true,
   });
 
   const salaryManager = useSalaryManager({
     provider: eip1193Provider,
-    chainId,
+    chainId: chainId ?? undefined,
     signer: signer ?? undefined,
     fhevmInstance,
   });
@@ -74,7 +74,9 @@ export default function Home() {
   async function refreshFunds() {
     if (!provider || !target?.address) return;
     try {
-      const c = new ethers.Contract(target.address, SalaryManagerABI.abi, provider);
+      const c = new Contract(target.address, SalaryManagerABI.abi, provider) as unknown as {
+        getDAOFunds(): Promise<bigint>;
+      };
       const funds = await c.getDAOFunds();
       setDaoFunds(ethers.formatUnits(funds, 18));
     } catch (e: any) {
@@ -85,7 +87,9 @@ export default function Home() {
   async function deposit() {
     if (!signer || !target?.address || !depositEth) return;
     try {
-      const cWrite = new ethers.Contract(target.address, SalaryManagerABI.abi, signer);
+      const cWrite = new Contract(target.address, SalaryManagerABI.abi, signer) as unknown as {
+        fundContract(opts: { value: bigint; gasLimit?: bigint }): Promise<{ wait(): Promise<void> }>;
+      };
       const value = ethers.parseEther(depositEth);
       // 某些本地节点在 UI 钱包估算 gas 偶尔返回较小值导致 -32603，手动给出充足 gasLimit
       const tx = await cWrite.fundContract({ value, gasLimit: 100000n });

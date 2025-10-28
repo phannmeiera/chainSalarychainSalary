@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ethers } from "ethers";
+import { BrowserProvider, Contract, Signer, ethers } from "ethers";
 import { useFhevm } from "../../fhevm/useFhevm";
 import { SalaryManagerAddresses } from "../../../abi/SalaryManagerAddresses";
 import { FhevmDecryptionSignature } from "../../fhevm/FhevmDecryptionSignature";
 import { GenericStringInMemoryStorage } from "../../fhevm/GenericStringStorage";
 
 export default function MySalaryPage() {
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
-  const [signer, setSigner] = useState<ethers.Signer | null>(null);
+  const [provider, setProvider] = useState<BrowserProvider | null>(null);
+  const [signer, setSigner] = useState<Signer | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [handle, setHandle] = useState<string | null>(null);
@@ -21,8 +21,8 @@ export default function MySalaryPage() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.ethereum) {
-      const p = new ethers.BrowserProvider(window.ethereum);
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      const p = new BrowserProvider((window as any).ethereum);
       setProvider(p);
       p.send("eth_chainId", []).then((cid) => setChainId(parseInt(cid, 16)));
     }
@@ -37,7 +37,7 @@ export default function MySalaryPage() {
 
   const { instance, status } = useFhevm({
     provider: provider ? (window as any).ethereum : undefined,
-    chainId,
+    chainId: chainId ?? undefined,
     initialMockChains: { 31337: "http://127.0.0.1:8545" },
     enabled: true,
   });
@@ -54,8 +54,10 @@ export default function MySalaryPage() {
     if (!provider || !target) return;
     setMessage("Loading employee info...");
     try {
-      const abi = ["function getEmployeeInfo(address emp) view returns (bytes32,uint64,uint64,bool)"];
-      const c = new ethers.Contract(target, abi, provider);
+      const abi = ["function getEmployeeInfo(address) view returns (bytes32,uint64,uint64,bool)"];
+      const c = new Contract(target, abi, provider) as unknown as {
+        getEmployeeInfo(emp: string | null): Promise<[string, bigint, bigint, boolean]>;
+      };
       const info = await c.getEmployeeInfo(address);
       const salaryHandle = info[0] as string;
       const cycle = Number(info[1]);

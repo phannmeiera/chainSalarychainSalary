@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ethers } from "ethers";
+import { BrowserProvider, Contract, Eip1193Provider, Signer, ethers } from "ethers";
 import { SalaryManagerABI } from "../../abi/SalaryManagerABI";
 import { SalaryManagerAddresses } from "../../abi/SalaryManagerAddresses";
 
 export function useSalaryManager(params: {
-  provider: ethers.Eip1193Provider | undefined;
+  provider: Eip1193Provider | undefined;
   chainId: number | undefined;
-  signer: ethers.Signer | undefined;
+  signer: Signer | undefined;
   fhevmInstance: any | undefined;
 }) {
   const { provider, chainId, signer, fhevmInstance } = params;
@@ -29,8 +29,8 @@ export function useSalaryManager(params: {
 
   const contractReadonly = useMemo(() => {
     if (!provider || !contractInfo.address) return undefined;
-    const runner = new ethers.BrowserProvider(provider);
-    return (async () => new ethers.Contract(contractInfo.address!, contractInfo.abi, await runner.getSigner()))();
+    const runner = new BrowserProvider(provider);
+    return (async () => new Contract(contractInfo.address!, contractInfo.abi, await runner.getSigner()))();
   }, [provider, contractInfo.address, contractInfo.abi]);
 
   const addEmployee = useCallback(async (emp: string, salary: bigint, cycleSeconds: number) => {
@@ -47,7 +47,15 @@ export function useSalaryManager(params: {
       const enc = await buffer.encrypt();
 
       setMessage("提交交易...");
-      const contract = new ethers.Contract(contractInfo.address, contractInfo.abi, signer);
+      const contract = new Contract(contractInfo.address, contractInfo.abi, signer) as unknown as {
+        addEmployee(
+          emp: string,
+          handle: any,
+          inputProof: any,
+          cycleSeconds: number,
+          clearSalaryWei: bigint
+        ): Promise<{ hash: string; wait(): Promise<void> }>;
+      };
       const tx = await contract.addEmployee(emp, enc.handles[0], enc.inputProof, cycleSeconds, salary);
       await tx.wait();
       setMessage(`✅ 添加完成 tx=${tx.hash}`);
@@ -64,7 +72,9 @@ export function useSalaryManager(params: {
     try {
       setBusy(true);
       setMessage("⏳ 正在领取工资...");
-      const contract = new ethers.Contract(contractInfo.address, contractInfo.abi, signer);
+      const contract = new Contract(contractInfo.address, contractInfo.abi, signer) as unknown as {
+        claimSalary(): Promise<{ hash: string; wait(): Promise<void> }>;
+      };
       const tx = await contract.claimSalary();
       await tx.wait();
       setMessage(`🎉 领取完成！tx=${tx.hash}`);

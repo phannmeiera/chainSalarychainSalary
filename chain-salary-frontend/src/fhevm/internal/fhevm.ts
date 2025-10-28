@@ -20,10 +20,10 @@ export async function createFhevmInstance(params: {
     // 优先尝试 FHEVM Hardhat 节点元数据；失败则使用内置占位地址创建本地 mock
     let instance: any;
     try {
-      const version = await client.send("web3_clientVersion", []);
+      const version = await (client as any).send("web3_clientVersion", []);
       if (typeof version === "string" && version.toLowerCase().includes("hardhat")) {
         try {
-          const meta = await client.send("fhevm_relayer_metadata", []);
+          const meta = await (client as any).send("fhevm_relayer_metadata", []);
           if (meta && meta.ACLAddress && meta.InputVerifierAddress && meta.KMSVerifierAddress) {
             instance = await MockFhevmInstance.create(client, client, {
               aclContractAddress: meta.ACLAddress,
